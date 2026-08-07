@@ -14,7 +14,7 @@ export class MyFirstMachineStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: MyFirstMachineStackProps) {
     super(scope, id, props);
 
-    const lambdaInvokeTask = tasks.LambdaInvoke.jsonata(this, "Lambda Invoke", {
+    const lambdaInvokeTask = tasks.LambdaInvoke.jsonata(this, "SaveHelloFunction", {
       lambdaFunction: props.lambdaFunction,
       payload: sfn.TaskInput.fromObject({
         Payload: "{% $states.input %}",
