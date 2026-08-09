@@ -15,6 +15,7 @@ export class TranscribeMachineStack extends cdk.Stack {
 
     const transcribeBucketS3 = new s3.Bucket(this, 'TranscribeBucketS3', {
       bucketName: props?.inputBucketName || undefined,
+      eventBridgeEnabled: true, // Habilita eventos de EventBridge para el bucket
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
@@ -80,7 +81,8 @@ export class TranscribeMachineStack extends cdk.Stack {
       queryLanguage: sfn.QueryLanguage.JSONATA,
     });
 
-    transcribeBucketS3.grantReadWrite(transcribeMachine);
+    //otorga permisos de lectura en el bucket de S3 a la máquina de estados y permisos para iniciar y obtener trabajos de transcripción
+    transcribeBucketS3.grantRead(transcribeMachine);
     transcribeMachine.addToRolePolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
