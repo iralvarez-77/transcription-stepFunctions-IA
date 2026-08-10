@@ -4,6 +4,8 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as sfn from 'aws-cdk-lib/aws-stepfunctions';
 import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as events from 'aws-cdk-lib/aws-events';
+import * as targets from 'aws-cdk-lib/aws-events-targets';
 
 interface TranscribeMachineStackProps extends cdk.StackProps {
   inputBucketName?: string;
@@ -19,6 +21,22 @@ export class TranscribeMachineStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
+    const s3PutEventRule = new events.Rule(this, 'S3PutEventRule', {
+      //eventBus: myCustomBus, En el código de AWS CDK, si no especificas la propiedad eventBus, CDK asume automáticamente que la regla se debe registrar en el bus default.
+      eventPattern: {
+        source: ['aws.s3'],
+        detailType: ['Object Created'], // Se activa al subir/crear objetos
+        detail: {
+          bucket: {
+            name: [transcribeBucketS3.bucketName], // Filtra por tu bucket
+          },
+          object: {
+            key: [{ suffix: '.MP4' }],
+          },
+        },
+      },
+    });
+
     const transcribeText = new tasks.CallAwsService(this, 'Transcribe Text', {
       service: 'transcribe',
       action: 'startTranscriptionJob',
@@ -30,7 +48,7 @@ export class TranscribeMachineStack extends cdk.Stack {
         'TranscriptionJobName': '{% $states.context.Execution.Name %}',
         'LanguageCode': 'en-US',
         'OutputBucketName': transcribeBucketS3.bucketName,
-        'OutputKey': `{% $states.input.detail.object.key & '.txt' %}`
+        'OutputKey': `{% 'transcribed/' & $states.input.detail.object.key & '.txt' %}`
       },
       iamResources: ['*'],
     });
@@ -82,7 +100,7 @@ export class TranscribeMachineStack extends cdk.Stack {
     });
 
     //otorga permisos de lectura en el bucket de S3 a la máquina de estados y permisos para iniciar y obtener trabajos de transcripción
-    transcribeBucketS3.grantRead(transcribeMachine);
+    transcribeBucketS3.grantReadWrite(transcribeMachine);
     transcribeMachine.addToRolePolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
@@ -91,5 +109,10 @@ export class TranscribeMachineStack extends cdk.Stack {
       ],
       resources: ['*'],
     }));
+
+    s3PutEventRule.addTarget(new targets.SfnStateMachine(transcribeMachine, {
+      input: events.RuleTargetInput.fromEventPath('$.detail'),
+    }));
+
   }
 }
