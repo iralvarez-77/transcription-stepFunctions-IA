@@ -43,12 +43,12 @@ export class TranscribeMachineStack extends cdk.Stack {
       queryLanguage: sfn.QueryLanguage.JSONATA,
       parameters: {
         'Media': {
-          'MediaFileUri': `{% 's3://' & $states.input.detail.bucket.name & '/' & $states.input.detail.object.key %}`
+          'MediaFileUri': `{% "s3://" & $states.input.detail.bucket.name & "/" & $states.input.detail.object.key %}`
         },
         'TranscriptionJobName': '{% $states.context.Execution.Name %}',
         'LanguageCode': 'en-US',
         'OutputBucketName': transcribeBucketS3.bucketName,
-        'OutputKey': `{% 'transcribed/' & $states.input.detail.object.key & '.txt' %}`
+        'OutputKey': `{% "transcribed/" & $states.input.detail.object.key & ".txt" %}`
       },
       iamResources: ['*'],
     });
