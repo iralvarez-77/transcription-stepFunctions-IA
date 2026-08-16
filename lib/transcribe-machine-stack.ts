@@ -69,6 +69,41 @@ export class TranscribeMachineStack extends cdk.Stack {
       iamResources: ['*'],
     });
 
+    //Estado 5: 
+    const getTranscribedTextFromS3 = new tasks.CallAwsService(this, 'Get Transcribed File', {
+      service: 's3',
+      action: 'getObject',
+      queryLanguage: sfn.QueryLanguage.JSONATA,
+      parameters: {
+        'Bucket': transcribeBucketS3.bucketName,
+        'Key': `{% "translated/" & $states.input.detail.object.key & ".txt" %}`
+      },
+      iamResources: [transcribeBucketS3.arnForObjects('*')],
+    });
+
+    // Estado 6: Clean Transcribed Text
+    const cleanTranscribedText = new sfn.Pass(this, 'Clean Transcribed Text', {
+      inputPath: "$",
+      resultPath: "$.cleaned",
+      parameters: {
+        'Text.$': "$.Body",
+      },
+    });
+
+    // Estado 7: Translate Text
+    const translateText = new tasks.CallAwsService(this, 'Translate Text', {
+      service: 'translate',
+      action: 'translateText',
+      queryLanguage: sfn.QueryLanguage.JSONATA,
+      parameters: {
+        'Text': '{% $states.input.cleaned.Text %}',
+        'SourceLanguageCode': 'en',
+        'TargetLanguageCode': 'es',
+      },
+      iamResources: ['*'],
+    });
+
+
     // Estados Finales
     const succeedState = new sfn.Succeed(this, 'Succeed');
     const failedState = new sfn.Fail(this, 'Failed', {
@@ -80,7 +115,10 @@ export class TranscribeMachineStack extends cdk.Stack {
     const transcriptionJobStatusSuccessful = new sfn.Choice(this, 'Transcription Job Status Successful')
       .when(
         sfn.Condition.jsonata('{% $states.input.TranscriptionJob.TranscriptionJobStatus = "COMPLETED" %}'),
-        succeedState
+        getTranscribedTextFromS3
+          .next(cleanTranscribedText)
+          .next(translateText)
+          .next(succeedState)
       )
       .when(
         sfn.Condition.jsonata('{% $states.input.TranscriptionJob.TranscriptionJobStatus = "FAILED" %}'),
@@ -106,6 +144,7 @@ export class TranscribeMachineStack extends cdk.Stack {
       actions: [
         'transcribe:StartTranscriptionJob',
         'transcribe:GetTranscriptionJob',
+        'translate:TranslateText'
       ],
       resources: ['*'],
     }));
