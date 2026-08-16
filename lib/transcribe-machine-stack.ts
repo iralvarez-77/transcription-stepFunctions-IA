@@ -76,18 +76,18 @@ export class TranscribeMachineStack extends cdk.Stack {
       queryLanguage: sfn.QueryLanguage.JSONATA,
       parameters: {
         'Bucket': transcribeBucketS3.bucketName,
-        'Key': `{% "translated/" & $states.input.detail.object.key & ".txt" %}`
+        'Key': `{% "transcribed/" & $states.input.detail.object.key & ".txt" %}`
       },
       iamResources: [transcribeBucketS3.arnForObjects('*')],
     });
 
     // Estado 6: Clean Transcribed Text
     const cleanTranscribedText = new sfn.Pass(this, 'Clean Transcribed Text', {
-      inputPath: "$",
-      resultPath: "$.cleaned",
-      parameters: {
-        'Text.$': "$.Body",
-      },
+      outputs: {
+        'cleaned': {
+          'Text': '{% $states.input.Body %}'
+        }
+      }
     });
 
     // Estado 7: Translate Text
