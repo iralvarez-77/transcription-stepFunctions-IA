@@ -51,7 +51,7 @@ export class TranscribeMachineStack extends cdk.Stack {
         'OutputKey': `{% "transcribed/" & $states.input.object.key & ".txt" %}`
       },
       assign: {
-        'archivoOriginal': '{% $states.input.object.key %}'
+        'archivoOriginal': '{% $states.input.object.key %}' // Es completamente normal y correcto que no veas la variable en el input del estado Wait.En JSONata, las variables creadas con assign no viajan mezcladas dentro del payload del JSON principal (input u output). En su lugar, viajan en un contenedor de memoria paralelo del sistema que AWS Step Functions llama Variables de la Máquina de Estados (por eso en la salida de Transcribe Text te apareció bajo el campo separado llamado "assignedVariables"). Almacenar variables con assign es como guardar un valor en la memoria RAM del flujo. El valor de $archivoOriginal se mantendrá "vivo" de forma invisible durante toda la ejecución de la máquina, atravesando el Wait, loops o cualquier otro estado.
       },
       iamResources: ['*'],
     });
