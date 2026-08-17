@@ -79,7 +79,7 @@ export class TranscribeMachineStack extends cdk.Stack {
       queryLanguage: sfn.QueryLanguage.JSONATA,
       parameters: {
         'Bucket': transcribeBucketS3.bucketName,
-        'Key': `{% "transcribed/" & $archivoOriginal & ".txt" %}`
+        'Key': `{% "transcribed/" & $archivoOriginal & ".txt" %}` // `{% "transcribed/" & $states.input.object.key & ".txt" %}`.El problema por el cual tu propiedad "Key" se genera vacía como "transcribed/.txt" es porque en el momento en que se ejecuta el paso 'Get Transcribed File', el objeto $states.input ya no contiene la propiedad object.key.En AWS Step Functions, cada paso que se ejecuta sobrescribe el JSON de entrada del siguiente paso. Como tu paso anterior fue 'Transcribe Text' (Amazon Transcribe), la salida de ese servicio es un JSON con los datos del Job de transcripción, destruyendo tu entrada original de S3 donde venía "mi-video.MP4".Para solucionar esto en JSONata, debes capturar el valor de la clave del archivo al inicio del flujo y almacenarlo en una variable de asignación (assign) para poder usarlo en pasos posteriores sin importar lo que respondan los servicios intermedios.
       },
       iamResources: [transcribeBucketS3.arnForObjects('*')],
     });
