@@ -50,6 +50,9 @@ export class TranscribeMachineStack extends cdk.Stack {
         'OutputBucketName': transcribeBucketS3.bucketName,
         'OutputKey': `{% "transcribed/" & $states.input.object.key & ".txt" %}`
       },
+      assign: {
+        'archivoOriginal': '{% $states.input.object.key %}'
+      },
       iamResources: ['*'],
     });
     
@@ -76,7 +79,7 @@ export class TranscribeMachineStack extends cdk.Stack {
       queryLanguage: sfn.QueryLanguage.JSONATA,
       parameters: {
         'Bucket': transcribeBucketS3.bucketName,
-        'Key': `{% "transcribed/" & $states.input.object.key & ".txt" %}`
+        'Key': `{% "transcribed/" & $archivoOriginal & ".txt" %}`
       },
       iamResources: [transcribeBucketS3.arnForObjects('*')],
     });
@@ -85,7 +88,7 @@ export class TranscribeMachineStack extends cdk.Stack {
     const cleanTranscribedText = new sfn.Pass(this, 'Clean Transcribed Text', {
       outputs: {
         'cleaned': {
-          'Text': '{% $states.input.Body %}'
+          'Text': '{% $parse($states.input.Body).results.transcripts.transcript %}' // el objeto Body viene codificado como una cadena de texto (String) dentro de Step Functions, Cuando el SDK de S3 ejecuta getObject, devuelve el archivo como un string plano. Para poder navegar dentro de sus propiedades (results.transcripts), es obligatorio parsearlo a JSON primero.
         }
       }
     });
