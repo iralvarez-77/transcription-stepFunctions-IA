@@ -151,12 +151,24 @@ export class TranscribeMachineStack extends cdk.Stack {
       model: bedrock.FoundationModel.fromFoundationModelId(
         this, 
         'BedrockModel', 
-        bedrock.FoundationModelIdentifier.ANTHROPIC_CLAUDE_3_5_HAIKU_20241022_V1_0 // Puedes usar el identificador tipado nativo
+        bedrock.FoundationModelIdentifier.AMAZON_NOVA_LITE_V1_0 // Puedes usar el identificador tipado nativo
       ),
-      // Mapeamos el cuerpo (Body) usando la sintaxis de JSONata
+      // El Body estructurado para Amazon Nova
       body: sfn.TaskInput.fromObject({
-        'prompt': '{% $states.input.completedPrompt.prompt %}',
-        'maxTokens': 1666
+        'inferenceConfig': {
+          'maxNewTokens': 1000,
+          'temperature': 0.7
+        },
+        'messages': [
+          {
+            'role': 'user',
+            'content': [
+              {
+                'text': '{% $states.input.completedPrompt.prompt %}'
+              }
+            ]
+          }
+        ]
       }),
       
       contentType: 'application/json',
