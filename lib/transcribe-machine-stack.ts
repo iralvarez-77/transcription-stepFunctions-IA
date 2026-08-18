@@ -6,6 +6,7 @@ import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
+import { aws_bedrock as bedrock } from 'aws-cdk-lib';
 
 interface TranscribeMachineStackProps extends cdk.StackProps {
   inputBucketName?: string;
@@ -117,35 +118,62 @@ export class TranscribeMachineStack extends cdk.Stack {
       }
     });
      // Estado 9: Combine prompts
-    // const combinePrompts = new sfn.Pass(this, 'Combine prompts', {
-    //   queryLanguage: sfn.QueryLanguage.JSONATA,
-    //   outputs: {
-    //     // Seguimos arrastrando los datos base para que no se pierdan
-    //     'translatedText': '{% $states.input.translatedText %}',
-    //     'prompt': '{% $states.input.prompt %}',
-    //     // Esto reemplaza a ResultPath: $.completedPrompt y States.Format
-    //     'completedPrompt': {
-    //       // Nota: Ajusté $.transcriptedText.TranslatedText al formato JSONata que definiste antes ($states.input.cleaned.Text)
-    //       'prompt': '{% $states.input.prompt.basicPrompt & " " & $states.input.translatedText %}'
-    //     }
-    //   }
-    // });
+    const combinePrompts = new sfn.Pass(this, 'Combine prompts', {
+      queryLanguage: sfn.QueryLanguage.JSONATA,
+      outputs: {
+        // Seguimos arrastrando los datos base para que no se pierdan
+        //'translatedText': '{% $states.input.translatedText %}',
+        //'prompt': '{% $states.input.prompt %}',
+        'completedPrompt': {
+          'prompt': '{% $states.input.prompt.basicPrompt & " " & $states.input.translatedText %}'
+        }
+      }
+    });
 
     // Estado 10: Create S3 result URI
-    // const createS3ResultUri = new sfn.Pass(this, 'Create S3 result URI', {
-    //   queryLanguage: sfn.QueryLanguage.JSONATA,
-    //   outputs: {
-    //     // Arrastramos el acumulado de los pasos anteriores
-    //     'cleaned': '{% $states.input.cleaned %}',
-    //     'prompt': '{% $states.input.prompt %}',
-    //     'completedPrompt': '{% $states.input.completedPrompt %}',
-    //     // Esto reemplaza a ResultPath: $.resultURI y States.Format
-    //     'resultURI': {
-    //       // Usamos la variable FileName que limpiamos dinámicamente en el paso 'Clean Transcribed Text'
-    //       'uri': `{% "https://s3.us-east-1.amazonaws.com/${transcribeBucketS3.bucketName}/results/" & $states.input.cleaned.FileName %}`
-    //     }
-    //   }
-    // });
+    const createS3ResultUri = new sfn.Pass(this, 'Create S3 result URI', {
+      queryLanguage: sfn.QueryLanguage.JSONATA,
+      outputs: {
+        // Arrastramos el acumulado de los pasos anteriores
+        //'cleaned': '{% $states.input.cleaned %}',
+        //'prompt': '{% $states.input.prompt %}',
+        'completedPrompt': '{% $states.input.completedPrompt %}',
+        // Esto reemplaza a ResultPath: $.resultURI y States.Format
+        'resultURI': {
+          // Usamos la variable FileName que limpiamos dinámicamente en el paso 'Clean Transcribed Text'
+          'uri': `{% "https://s3.us-east-1.amazonaws.com/${transcribeBucketS3.bucketName}/results/" & $archivoOriginal & ".txt" & "-result.json" %}`
+        }
+      }
+    });
+    //estado 11: Bedrock Invoke Model
+    const bedrockInvokeModel = new tasks.BedrockInvokeModel(this, 'Bedrock InvokeModel', {
+      queryLanguage: sfn.QueryLanguage.JSONATA, // Activamos JSONata para este estado
+      model: bedrock.FoundationModel.fromFoundationModelId(
+        this, 
+        'BedrockModel', 
+        bedrock.FoundationModelIdentifier.ANTHROPIC_CLAUDE_3_5_HAIKU_20241022_V1_0 // Puedes usar el identificador tipado nativo
+      ),
+      // Mapeamos el cuerpo (Body) usando la sintaxis de JSONata
+      body: sfn.TaskInput.fromObject({
+        'prompt': '{% $states.input.completedPrompt.prompt %}',
+        'maxTokens': 1666
+      }),
+      
+      contentType: 'application/json',
+      accept: 'application/json',
+      
+      // Configuramos la salida hacia S3 eliminando la propiedad Output y usando su configuración nativa
+      output: {
+        s3OutputUri: '{% $states.input.resultURI.uri %}'
+      },
+      
+      // Reemplaza a ResultPath: $.result combinándolo con la salida
+      outputs: {
+        'completedPrompt': '{% $states.input.completedPrompt %}',
+        'resultURI': '{% $states.input.resultURI %}',
+        'result': '{% $states.result %}' // Aquí JSONata inyecta la respuesta automática de Bedrock
+      }
+    });
 
     // Estados Finales
     const succeedState = new sfn.Succeed(this, 'Succeed');
@@ -162,8 +190,9 @@ export class TranscribeMachineStack extends cdk.Stack {
           .next(cleanTranscribedText)
           .next(translateText)
           .next(addBasicPrompt)
-          //.next(combinePrompts)
-          //.next(createS3ResultUri)
+          .next(combinePrompts)
+          .next(createS3ResultUri)
+          .next(bedrockInvokeModel)
           .next(succeedState)
       )
       .when(
@@ -190,7 +219,8 @@ export class TranscribeMachineStack extends cdk.Stack {
       actions: [
         'transcribe:StartTranscriptionJob',
         'transcribe:GetTranscriptionJob',
-        'translate:TranslateText'
+        'translate:TranslateText',
+        'bedrock:InvokeModel'
       ],
       resources: ['*'],
     }));
