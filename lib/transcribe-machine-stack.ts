@@ -151,20 +151,19 @@ export class TranscribeMachineStack extends cdk.Stack {
       model: bedrock.FoundationModel.fromFoundationModelId(
         this, 
         'BedrockModel', 
-        bedrock.FoundationModelIdentifier.AMAZON_NOVA_LITE_V1_0 // Puedes usar el identificador tipado nativo
+        bedrock.FoundationModelIdentifier.ANTHROPIC_CLAUDE_3_HAIKU_20240307_V1_0// Puedes usar el identificador tipado nativo anthropic.claude-3-haiku-20240307-v1:0
       ),
-      // El Body estructurado para Amazon Nova
+      // 2. Body estructurado con el formato oficial de la API de Mensajes de Anthropic
       body: sfn.TaskInput.fromObject({
-        'inferenceConfig': {
-          'maxNewTokens': 1000,
-          'temperature': 0.7
-        },
+        'anthropic_version': 'bedrock-2023-05-31', // Versión de API requerida por Anthropic
+        'max_tokens': 1000,
         'messages': [
           {
             'role': 'user',
             'content': [
               {
-                'text': '{% $states.input.completedPrompt.prompt %}'
+                'type': 'text',
+                'text': '{% $states.input.completedPrompt.prompt %}' // Entrada dinámica de JSONata
               }
             ]
           }
@@ -185,6 +184,14 @@ export class TranscribeMachineStack extends cdk.Stack {
         'resultURI': '{% $states.input.resultURI %}',
         'result': '{% $states.result %}' // Aquí JSONata inyecta la respuesta automática de Bedrock
       }
+    });
+
+    //Configuración de Reintentos (Mitigación de errores Throttling / 429)
+    bedrockInvokeModel.addRetry({
+      errors: ['Bedrock.ThrottlingException'],
+      interval: cdk.Duration.seconds(5),   // Tiempo de espera base inicial
+      maxAttempts: 4,                  // Total de reintentos antes de fallar permanentemente
+      backoffRate: 2,                  // Factor multiplicador del tiempo (5s, 10s, 20s, 40s)
     });
 
     // Estados Finales
