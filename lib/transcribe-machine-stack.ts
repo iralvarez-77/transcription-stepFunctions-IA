@@ -110,9 +110,7 @@ export class TranscribeMachineStack extends cdk.Stack {
     const addBasicPrompt = new sfn.Pass(this, 'Add basic prompt to the output', {
       queryLanguage: sfn.QueryLanguage.JSONATA,
       outputs: {
-        // Arrastramos todo lo que venía en el input original (como tu cleaned.Text y FileName)
-        'cleaned': '{% $states.input.TranslatedText %}',
-        // Esto reemplaza al ResultPath: $.prompt
+        'translatedText': '{% $states.input.TranslatedText %}',
         'prompt': {
           'basicPrompt': 'Given the transcript provided at the end of the prompt, return a summary of 160 characters of the transcript. Keep the original language of the transcript. If the transcript is provided in spanish, return the summary in spanish. Here is the transcript: '
         }
@@ -123,15 +121,16 @@ export class TranscribeMachineStack extends cdk.Stack {
     //   queryLanguage: sfn.QueryLanguage.JSONATA,
     //   outputs: {
     //     // Seguimos arrastrando los datos base para que no se pierdan
-    //     'cleaned': '{% $states.input.cleaned %}',
+    //     'translatedText': '{% $states.input.translatedText %}',
     //     'prompt': '{% $states.input.prompt %}',
     //     // Esto reemplaza a ResultPath: $.completedPrompt y States.Format
     //     'completedPrompt': {
     //       // Nota: Ajusté $.transcriptedText.TranslatedText al formato JSONata que definiste antes ($states.input.cleaned.Text)
-    //       'prompt': '{% $states.input.prompt.basicPrompt & " " & $states.input.cleaned.Text %}'
+    //       'prompt': '{% $states.input.prompt.basicPrompt & " " & $states.input.translatedText %}'
     //     }
     //   }
     // });
+
     // Estado 10: Create S3 result URI
     // const createS3ResultUri = new sfn.Pass(this, 'Create S3 result URI', {
     //   queryLanguage: sfn.QueryLanguage.JSONATA,
