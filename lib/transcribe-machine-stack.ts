@@ -106,6 +106,47 @@ export class TranscribeMachineStack extends cdk.Stack {
       iamResources: ['*'],
     });
 
+    // estado 8: Add Basic Prompt to the Output
+    const addBasicPrompt = new sfn.Pass(this, 'Add basic prompt to the output', {
+      queryLanguage: sfn.QueryLanguage.JSONATA,
+      outputs: {
+        // Arrastramos todo lo que venía en el input original (como tu cleaned.Text y FileName)
+        'cleaned': '{% $states.input.TranslatedText %}',
+        // Esto reemplaza al ResultPath: $.prompt
+        'prompt': {
+          'basicPrompt': 'Given the transcript provided at the end of the prompt, return a summary of 160 characters of the transcript. Keep the original language of the transcript. If the transcript is provided in spanish, return the summary in spanish. Here is the transcript: '
+        }
+      }
+    });
+     // Estado 9: Combine prompts
+    // const combinePrompts = new sfn.Pass(this, 'Combine prompts', {
+    //   queryLanguage: sfn.QueryLanguage.JSONATA,
+    //   outputs: {
+    //     // Seguimos arrastrando los datos base para que no se pierdan
+    //     'cleaned': '{% $states.input.cleaned %}',
+    //     'prompt': '{% $states.input.prompt %}',
+    //     // Esto reemplaza a ResultPath: $.completedPrompt y States.Format
+    //     'completedPrompt': {
+    //       // Nota: Ajusté $.transcriptedText.TranslatedText al formato JSONata que definiste antes ($states.input.cleaned.Text)
+    //       'prompt': '{% $states.input.prompt.basicPrompt & " " & $states.input.cleaned.Text %}'
+    //     }
+    //   }
+    // });
+    // Estado 10: Create S3 result URI
+    // const createS3ResultUri = new sfn.Pass(this, 'Create S3 result URI', {
+    //   queryLanguage: sfn.QueryLanguage.JSONATA,
+    //   outputs: {
+    //     // Arrastramos el acumulado de los pasos anteriores
+    //     'cleaned': '{% $states.input.cleaned %}',
+    //     'prompt': '{% $states.input.prompt %}',
+    //     'completedPrompt': '{% $states.input.completedPrompt %}',
+    //     // Esto reemplaza a ResultPath: $.resultURI y States.Format
+    //     'resultURI': {
+    //       // Usamos la variable FileName que limpiamos dinámicamente en el paso 'Clean Transcribed Text'
+    //       'uri': `{% "https://s3.us-east-1.amazonaws.com/${transcribeBucketS3.bucketName}/results/" & $states.input.cleaned.FileName %}`
+    //     }
+    //   }
+    // });
 
     // Estados Finales
     const succeedState = new sfn.Succeed(this, 'Succeed');
@@ -121,6 +162,9 @@ export class TranscribeMachineStack extends cdk.Stack {
         getTranscribedTextFromS3
           .next(cleanTranscribedText)
           .next(translateText)
+          .next(addBasicPrompt)
+          //.next(combinePrompts)
+          //.next(createS3ResultUri)
           .next(succeedState)
       )
       .when(
